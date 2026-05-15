@@ -1,0 +1,8 @@
+model,source,best_test_acc,trainable_params,total_params,trainable_pct
+Fine-tuning parcial,ResNet18 ImageNet,0.8644953759549658,10495492.0,11178564.0,0.9388944769650198
+Fine-tuning total,ResNet18 ImageNet,0.860876558102131,11178564.0,11178564.0,1.0
+VGG-11_half + BN,Desde cero,0.7901085615158081,,,
+LeNet-5,Desde cero,0.5858464241027832,,,
+Feature Extraction,ResNet18 ImageNet,0.45958986731001206,2052.0,11178564.0,0.00018356561719376477
+LeNet-5 + BN,Desde cero,0.45556896924972534,,,
+VGG-11_half,Desde cero,0.25090470910072327,,,

@@ -1,0 +1,4 @@
+model,source,best_test_acc,trainable_params,total_params,trainable_pct,elapsed_min,checkpoint
+Fine-tuning parcial,ResNet18 ImageNet,0.8644953759549658,10495492,11178564,0.9388944769650198,7.60663936138153,models/resnet18_fine_tuning_parcial.pth
+Fine-tuning total,ResNet18 ImageNet,0.860876558102131,11178564,11178564,1.0,7.7270639101664225,models/resnet18_fine_tuning_total.pth
+Feature Extraction,ResNet18 ImageNet,0.45958986731001206,2052,11178564,0.00018356561719376477,7.745654090245565,models/resnet18_feature_extraction.pth
