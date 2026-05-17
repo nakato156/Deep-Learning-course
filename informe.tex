@@ -1,0 +1,287 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\geometry{margin=2.5cm}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!50!black,
+    citecolor=blue!50!black,
+    urlcolor=blue!50!black
+}
+
+\title{\textbf{Clasificacion de celulas sanguineas mediante redes convolucionales y transferencia de aprendizaje}}
+\author{Informe de experimentos desarrollados en notebooks}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este informe sintetiza el trabajo desarrollado en los notebooks del proyecto para clasificar imagenes de celulas sanguineas en cuatro clases: eosinofilos, linfocitos, monocitos y neutrofilos. Se realizo un analisis exploratorio del conjunto de datos, se entrenaron arquitecturas convolucionales desde cero basadas en LeNet-5 y VGG-11 reducido, se estudio el efecto de Batch Normalization y se compararon tres estrategias de transferencia de aprendizaje con ResNet18 preentrenada en ImageNet. El mejor resultado global fue obtenido por ResNet18 con fine-tuning parcial, con una exactitud de prueba de 86.45\%, seguido por fine-tuning total con 86.09\% y por VGG-11 reducido con Batch Normalization con 79.01\%. El analisis critico muestra que la transferencia de aprendizaje mejora el desempeno, pero tambien evidencia riesgos metodologicos: posible fuga de datos entre particiones, sobreajuste en algunos modelos y uso reiterado del conjunto TEST como criterio de seleccion.
+\end{abstract}
+
+\section{Introduccion}
+
+La clasificacion automatica de celulas sanguineas a partir de imagenes microscopicas es una tarea relevante para apoyar procesos de analisis hematologico. Aunque las redes convolucionales han mostrado buen desempeno en vision por computador, su rendimiento depende fuertemente del tamano del conjunto de datos, de la estabilidad del entrenamiento y de la capacidad del modelo para aprender patrones morfologicos finos.
+
+El objetivo del proyecto fue comparar modelos entrenados desde cero contra modelos con transferencia de aprendizaje. Para ello se desarrollaron cinco notebooks principales: \texttt{01\_eda.ipynb}, dedicado al analisis exploratorio; \texttt{02\_lenet.ipynb}, con experimentos LeNet-5; \texttt{02\_vgg.ipynb}, con VGG-11 reducido; el notebook comparativo \texttt{02\_comparision.ipynb}, con el estudio de Batch Normalization, tasas de aprendizaje y mapas de caracteristicas; y \texttt{03\_transfer.ipynb}, con transferencia de aprendizaje usando ResNet18.
+
+\section{Datos y analisis exploratorio}
+
+El conjunto de clasificacion esta organizado en formato compatible con \texttt{ImageFolder}, con particiones \texttt{TRAIN}, \texttt{TEST} y \texttt{TEST\_SIMPLE}. Se trabajaron cuatro clases balanceadas en entrenamiento: \texttt{EOSINOPHIL}, \texttt{LYMPHOCYTE}, \texttt{MONOCYTE} y \texttt{NEUTROPHIL}. La Tabla~\ref{tab:distribucion} resume la distribucion de imagenes.
+
+\begin{table}[H]
+\centering
+\caption{Distribucion de imagenes por particion y clase.}
+\label{tab:distribucion}
+\begin{tabular}{lrrrrr}
+\toprule
+Particion & EOSINOPHIL & LYMPHOCYTE & MONOCYTE & NEUTROPHIL & Total \\
+\midrule
+TRAIN & 2497 & 2483 & 2478 & 2499 & 9957 \\
+TEST & 623 & 620 & 620 & 624 & 2487 \\
+TEST\_SIMPLE & 13 & 6 & 4 & 48 & 71 \\
+\midrule
+Total & 3133 & 3109 & 3102 & 3171 & 12515 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El EDA encontro que la dimension mas frecuente fue de $320 \times 240$ pixeles en las 12515 imagenes de clasificacion. El balance de entrenamiento fue adecuado, con un ratio maximo/minimo de aproximadamente 1.01 entre clases. Tambien se reviso el conjunto original anotado, que contiene \texttt{labels.csv} con 411 filas y 15 casos multietiqueta. Las anotaciones XML tipo Pascal VOC incluyen 343 imagenes anotadas y 3854 objetos etiquetados como RBC. Esto sugiere que las anotaciones XML no describen directamente la misma tarea que la clasificacion por tipo de leucocito, sino objetos celulares localizados dentro de la imagen.
+
+Un hallazgo importante fue la presencia de 2 grupos de duplicados exactos por hash y 48 identificadores fuente presentes en mas de una particion. Este punto es metodologicamente critico porque puede producir fuga de informacion entre entrenamiento y prueba, inflando el desempeno observado. Por ello, los resultados deben interpretarse como comparacion experimental interna y no como estimacion definitiva de desempeno clinico.
+
+\section{Metodologia}
+
+\subsection{Preprocesamiento}
+
+Para los modelos entrenados desde cero se redimensionaron las imagenes a $64 \times 64$ pixeles. Para ResNet18 se uso entrada $224 \times 224$, consistente con el preentrenamiento en ImageNet. En todos los experimentos se normalizaron las imagenes con la media y desviacion estandar de ImageNet:
+\[
+\mu = [0.485, 0.456, 0.406], \qquad \sigma = [0.229, 0.224, 0.225].
+\]
+En transferencia de aprendizaje se incorporaron aumentos moderados durante entrenamiento para reducir sobreajuste sin alterar de forma agresiva la morfologia celular.
+
+\subsection{Modelos entrenados desde cero}
+
+Se evaluaron dos familias de modelos:
+
+\begin{itemize}
+    \item \textbf{LeNet-5 adaptado}: arquitectura con dos capas convolucionales, activacion \texttt{Tanh}, \texttt{AvgPool2d} y tres capas lineales. Se implemento una variante con Batch Normalization despues de cada convolucion.
+    \item \textbf{VGG-11 reducido}: version de VGG-11 con la mitad aproximada de canales, bloques convolucionales con \texttt{ReLU}, \texttt{MaxPool2d}, clasificador denso y \texttt{Dropout}. Tambien se evaluo una variante con Batch Normalization.
+\end{itemize}
+
+Los modelos se entrenaron con SGD, tasa de aprendizaje 0.01, momentum 0.9, \texttt{weight\_decay} $5 \times 10^{-4}$, tamano de batch 32 y 10 epocas. Las corridas se registraron en TensorBoard y se guardaron checkpoints en \texttt{models/}.
+
+\subsection{Transferencia de aprendizaje}
+
+El notebook \texttt{03\_transfer.ipynb} comparo tres estrategias con ResNet18 preentrenada en ImageNet:
+
+\begin{itemize}
+    \item \textbf{Feature extraction}: se congelo el backbone y se entreno solo la capa final.
+    \item \textbf{Fine-tuning parcial}: se congelaron los primeros bloques residuales y se entrenaron \texttt{layer3}, \texttt{layer4} y la capa final.
+    \item \textbf{Fine-tuning total}: se entreno toda la red con una tasa de aprendizaje pequena.
+\end{itemize}
+
+Las tres estrategias se entrenaron durante 8 epocas usando \texttt{TRAIN} para entrenamiento y \texttt{TEST} para evaluacion, con planificador de tasa de aprendizaje cosenoidal.
+
+\section{Resultados}
+
+\subsection{Modelos desde cero}
+
+La Tabla~\ref{tab:desde-cero} muestra la mejor exactitud de prueba observada para los modelos entrenados desde cero. La diferencia mas marcada aparece en VGG-11 reducido: sin Batch Normalization el modelo quedo en desempeno cercano al azar para cuatro clases, mientras que con Batch Normalization alcanzo 79.01\%.
+
+\begin{table}[H]
+\centering
+\caption{Mejor exactitud de prueba en modelos entrenados desde cero.}
+\label{tab:desde-cero}
+\begin{tabular}{lcc}
+\toprule
+Modelo & Mejor exactitud TEST & Observacion principal \\
+\midrule
+LeNet-5 & 58.58\% & Aprende parcialmente, pero con capacidad limitada. \\
+LeNet-5 + BN & 45.56\% & Mayor accuracy de entrenamiento, peor generalizacion. \\
+VGG-11 reducido & 25.09\% & No converge; queda cerca del azar. \\
+VGG-11 reducido + BN & 79.01\% & Mejor modelo desde cero. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En LeNet-5 sin Batch Normalization se observo una mejora progresiva del entrenamiento hasta aproximadamente 75\%--81\% de exactitud en entrenamiento, segun la corrida registrada, pero la exactitud de prueba oscilo y se mantuvo por debajo de 59\%. En LeNet-5 con Batch Normalization, la exactitud de entrenamiento subio hasta 96.69\%, mientras que la prueba se mantuvo baja y fluctuante. Esto evidencia sobreajuste y sugiere que Batch Normalization no fue suficiente para mejorar la generalizacion en una red tan estrecha con activaciones \texttt{Tanh}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/accuracy_curves.png}
+\caption{Curvas de exactitud de validacion/prueba para modelos con y sin Batch Normalization.}
+\label{fig:accuracy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/loss_curves.png}
+\caption{Curvas de perdida para los modelos entrenados desde cero.}
+\label{fig:loss}
+\end{figure}
+
+\subsection{Efecto de Batch Normalization}
+
+Batch Normalization fue decisiva en el entrenamiento de VGG-11 reducido. La version sin normalizacion presento perdida cercana a 1.386 y exactitud alrededor de 25\%, lo cual corresponde aproximadamente al azar en una tarea de cuatro clases. La version con Batch Normalization, en cambio, llego a 79.01\% en la epoca 7.
+
+Este resultado es consistente con la propuesta de Ioffe y Szegedy~\cite{ioffe2015batch}, quienes introdujeron Batch Normalization para reducir el desplazamiento interno de covariables y estabilizar la distribucion de activaciones. Sin embargo, los resultados de LeNet-5 muestran que el beneficio no es automatico: en modelos pequenos y estrechos, las estadisticas de batch pueden ser ruidosas y no necesariamente mejorar la generalizacion.
+
+Tambien se probo el efecto de tasas de aprendizaje altas en LeNet-5. Sin Batch Normalization, tasas elevadas llevaron a oscilaciones severas y desempeno cercano al azar; con Batch Normalization hubo mayor tolerancia numerica, aunque no necesariamente mejor desempeno final. Esto coincide con interpretaciones modernas que atribuyen parte del beneficio de Batch Normalization a una optimizacion mas suave y predecible~\cite{santurkar2018does}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/lr_experiment.png}
+\caption{Experimento de tasa de aprendizaje para LeNet-5 con y sin Batch Normalization.}
+\label{fig:lr}
+\end{figure}
+
+\subsection{Mapas de caracteristicas}
+
+Se capturaron mapas de caracteristicas de la primera capa convolucional durante el entrenamiento. En LeNet-5, los mapas iniciales presentaron patrones poco estructurados; con el avance de las epocas aparecieron respuestas a bordes, texturas y regiones de contraste. La variante con Batch Normalization mostro mapas con mayor contraste y especializacion, aunque esto no se tradujo en mejor exactitud de prueba.
+
+En VGG-11 reducido, la comparacion fue mas clara: la version con Batch Normalization genero activaciones mas estables y utiles desde epocas tempranas, mientras que la version sin normalizacion mantuvo respuestas poco informativas, coherentes con su falta de convergencia.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/fmaps_comparison.png}
+\caption{Comparacion de mapas de caracteristicas en LeNet-5, al inicio y al final del entrenamiento.}
+\label{fig:fmaps-lenet}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/fmaps_vgg11_half_training_comparison.png}
+\caption{Comparacion de mapas de caracteristicas en VGG-11 reducido con y sin Batch Normalization.}
+\label{fig:fmaps-vgg}
+\end{figure}
+
+\subsection{Transferencia de aprendizaje}
+
+La Tabla~\ref{tab:transfer} resume los resultados de transferencia de aprendizaje con ResNet18. Fine-tuning parcial obtuvo el mejor resultado, con 86.45\% de exactitud de prueba. Fine-tuning total quedo muy cerca, con 86.09\%, mientras que feature extraction fue considerablemente inferior.
+
+\begin{table}[H]
+\centering
+\caption{Resultados de transferencia de aprendizaje con ResNet18.}
+\label{tab:transfer}
+\begin{tabular}{lrrrr}
+\toprule
+Estrategia & Exactitud TEST & Param. entrenables & Param. totales & Tiempo \\
+\midrule
+Feature extraction & 45.96\% & 2052 & 11178564 & 7.75 min \\
+Fine-tuning parcial & 86.45\% & 10495492 & 11178564 & 7.61 min \\
+Fine-tuning total & 86.09\% & 11178564 & 11178564 & 7.73 min \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El bajo desempeno de feature extraction indica que entrenar solo la capa final no basta para adaptar las representaciones de ImageNet al dominio de celulas sanguineas. Aunque los filtros tempranos de ImageNet capturan bordes y texturas generales, las capas profundas codifican conceptos visuales alejados de la morfologia celular. Fine-tuning parcial ofrece un mejor equilibrio: conserva representaciones tempranas genericas y adapta capas profundas al dominio especifico. Fine-tuning total no supero claramente al parcial, lo que sugiere que entrenar todos los parametros puede aumentar el riesgo de sobreajuste sin aportar una ganancia proporcional.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{results/transfer_learning_curves.png}
+\caption{Curvas de entrenamiento y prueba para las estrategias de transferencia.}
+\label{fig:transfer-curves}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\textwidth]{results/best_transfer_confusion_matrix.png}
+\caption{Matriz de confusion del mejor modelo transferido.}
+\label{fig:confusion}
+\end{figure}
+
+\subsection{Comparacion global}
+
+La comparacion final, presentada en la Tabla~\ref{tab:global}, muestra que la transferencia de aprendizaje fue la estrategia mas efectiva. ResNet18 con fine-tuning parcial supero al mejor modelo entrenado desde cero por aproximadamente 7.44 puntos porcentuales.
+
+\begin{table}[H]
+\centering
+\caption{Comparacion global de los modelos evaluados.}
+\label{tab:global}
+\begin{tabular}{llc}
+\toprule
+Modelo & Fuente & Mejor exactitud TEST \\
+\midrule
+Fine-tuning parcial & ResNet18 ImageNet & 86.45\% \\
+Fine-tuning total & ResNet18 ImageNet & 86.09\% \\
+VGG-11 reducido + BN & Desde cero & 79.01\% \\
+LeNet-5 & Desde cero & 58.58\% \\
+Feature extraction & ResNet18 ImageNet & 45.96\% \\
+LeNet-5 + BN & Desde cero & 45.56\% \\
+VGG-11 reducido & Desde cero & 25.09\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{results/transfer_vs_scratch_comparison.png}
+\caption{Comparacion entre modelos entrenados desde cero y estrategias de transferencia.}
+\label{fig:global}
+\end{figure}
+
+\section{Analisis critico}
+
+Los resultados apoyan tres conclusiones principales. Primero, la profundidad por si sola no garantiza buen desempeno: VGG-11 reducido sin Batch Normalization no logro entrenar de forma efectiva. Segundo, Batch Normalization puede ser esencial para redes profundas, pero no reemplaza una buena estrategia de regularizacion ni garantiza generalizacion en modelos pequenos. Tercero, la transferencia de aprendizaje fue claramente superior cuando se permitio adaptar capas profundas al dominio celular.
+
+No obstante, hay limitaciones importantes. La primera es la posible fuga de datos detectada en el EDA: 48 identificadores fuente aparecen en mas de una particion y existen duplicados exactos. Si imagenes muy similares o derivadas del mismo origen aparecen en entrenamiento y prueba, la exactitud reportada puede ser optimista. La segunda limitacion es que \texttt{TEST} se uso repetidamente como conjunto de evaluacion durante el desarrollo, por lo que tambien funciono parcialmente como conjunto de seleccion de modelos. Una evaluacion mas robusta requeriria separar \texttt{TRAIN} en entrenamiento y validacion, reservar \texttt{TEST} para una unica evaluacion final, y depurar duplicados o agrupar por identificador fuente antes de dividir.
+
+Tambien se observa sobreajuste. LeNet-5 + BN alcanzo alta exactitud de entrenamiento, pero bajo desempeno en prueba; fine-tuning parcial llego a mas de 99\% en entrenamiento desde las primeras epocas, mientras que prueba se estabilizo alrededor de 86\%. Aunque esto no invalida el resultado, indica que convendria reportar metricas por clase, intervalos de confianza y evaluacion externa si el objetivo fuera uso aplicado.
+
+\section{Conclusiones}
+
+El mejor modelo del proyecto fue ResNet18 con fine-tuning parcial, con 86.45\% de exactitud en TEST. Esta estrategia representa el mejor compromiso observado entre adaptacion al dominio, estabilidad y desempeno. Fine-tuning total obtuvo un resultado muy cercano, pero sin una mejora suficiente para justificar entrenar todos los parametros como primera opcion. El mejor modelo entrenado desde cero fue VGG-11 reducido con Batch Normalization, con 79.01\%, lo que confirma la importancia de la normalizacion en arquitecturas profundas.
+
+Como trabajo futuro se recomienda reconstruir las particiones eliminando duplicados y agrupando por identificador fuente, introducir un conjunto de validacion independiente, repetir los entrenamientos con varias semillas, reportar precision, recall y F1-score por clase, y evaluar tecnicas de regularizacion como early stopping, aumentacion mas controlada y ajuste fino progresivo.
+
+\begin{thebibliography}{9}
+
+\bibitem{lecun1998gradient}
+Y. LeCun, L. Bottou, Y. Bengio y P. Haffner.
+\textit{Gradient-based learning applied to document recognition}.
+Proceedings of the IEEE, 86(11), 2278--2324, 1998.
+
+\bibitem{simonyan2014very}
+K. Simonyan y A. Zisserman.
+\textit{Very Deep Convolutional Networks for Large-Scale Image Recognition}.
+arXiv:1409.1556, 2014.
+
+\bibitem{ioffe2015batch}
+S. Ioffe y C. Szegedy.
+\textit{Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift}.
+Proceedings of the 32nd International Conference on Machine Learning, 37, 448--456, 2015.
+
+\bibitem{santurkar2018does}
+S. Santurkar, D. Tsipras, A. Ilyas y A. Madry.
+\textit{How Does Batch Normalization Help Optimization?}
+Advances in Neural Information Processing Systems, 2018.
+
+\bibitem{he2016deep}
+K. He, X. Zhang, S. Ren y J. Sun.
+\textit{Deep Residual Learning for Image Recognition}.
+Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, 770--778, 2016.
+
+\bibitem{deng2009imagenet}
+J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li y L. Fei-Fei.
+\textit{ImageNet: A Large-Scale Hierarchical Image Database}.
+IEEE Conference on Computer Vision and Pattern Recognition, 248--255, 2009.
+
+\end{thebibliography}
+
+\end{document}
