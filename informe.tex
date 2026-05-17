@@ -31,7 +31,7 @@
 \maketitle
 
 \begin{abstract}
-Este informe sintetiza el trabajo desarrollado en los notebooks del proyecto para clasificar imagenes de celulas sanguineas en cuatro clases: eosinofilos, linfocitos, monocitos y neutrofilos. Se realizo un analisis exploratorio del conjunto de datos, se entrenaron arquitecturas convolucionales desde cero basadas en LeNet-5 y VGG-11 reducido, se estudio el efecto de Batch Normalization y se compararon tres estrategias de transferencia de aprendizaje con ResNet18 preentrenada en ImageNet. El mejor resultado global fue obtenido por ResNet18 con fine-tuning parcial, con una exactitud de prueba de 86.45\%, seguido por fine-tuning total con 86.09\% y por VGG-11 reducido con Batch Normalization con 79.01\%. El analisis critico muestra que la transferencia de aprendizaje mejora el desempeno, pero tambien evidencia riesgos metodologicos: posible fuga de datos entre particiones, sobreajuste en algunos modelos y uso reiterado del conjunto TEST como criterio de seleccion.
+Este informe sintetiza el trabajo desarrollado en los notebooks del proyecto para clasificar imagenes de celulas sanguineas en cuatro clases: eosinofilos, linfocitos, monocitos y neutrofilos. Se realizo un analisis exploratorio del conjunto de datos, se entrenaron arquitecturas convolucionales desde cero basadas en LeNet-5 y VGG-11 reducido, se estudio el efecto de Batch Normalization y se compararon tres estrategias de transferencia de aprendizaje con ResNet18 preentrenada en ImageNet. El mejor resultado global fue obtenido por ResNet18 con fine-tuning parcial, con una exactitud de prueba de 86.45\%, seguido por fine-tuning total con 86.09\% y por VGG-11 reducido con Batch Normalization con 81.22\%. El analisis critico muestra que la transferencia de aprendizaje mejora el desempeno, pero tambien evidencia riesgos metodologicos: posible fuga de datos entre particiones, sobreajuste en algunos modelos y uso reiterado del conjunto TEST como criterio de seleccion.
 \end{abstract}
 
 \section{Introduccion}
@@ -102,7 +102,7 @@ Las tres estrategias se entrenaron durante 8 epocas usando \texttt{TRAIN} para e
 
 \subsection{Modelos desde cero}
 
-La Tabla~\ref{tab:desde-cero} muestra la mejor exactitud de prueba observada para los modelos entrenados desde cero. La diferencia mas marcada aparece en VGG-11 reducido: sin Batch Normalization el modelo quedo en desempeno cercano al azar para cuatro clases, mientras que con Batch Normalization alcanzo 79.01\%.
+La Tabla~\ref{tab:desde-cero} muestra la mejor exactitud de prueba observada para los modelos entrenados desde cero. La diferencia mas marcada aparece en VGG-11 reducido: sin Batch Normalization el modelo quedo en desempeno cercano al azar para cuatro clases, mientras que con Batch Normalization alcanzo 81.22\%.
 
 \begin{table}[H]
 \centering
@@ -112,15 +112,15 @@ La Tabla~\ref{tab:desde-cero} muestra la mejor exactitud de prueba observada par
 \toprule
 Modelo & Mejor exactitud TEST & Observacion principal \\
 \midrule
-LeNet-5 & 58.58\% & Aprende parcialmente, pero con capacidad limitada. \\
-LeNet-5 + BN & 45.56\% & Mayor accuracy de entrenamiento, peor generalizacion. \\
+LeNet-5 & 58.22\% & Aprende parcialmente, pero con capacidad limitada. \\
+LeNet-5 + BN & 43.83\% & Mayor accuracy de entrenamiento, peor generalizacion. \\
 VGG-11 reducido & 25.09\% & No converge; queda cerca del azar. \\
-VGG-11 reducido + BN & 79.01\% & Mejor modelo desde cero. \\
+VGG-11 reducido + BN & 81.22\% & Mejor modelo desde cero. \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-En LeNet-5 sin Batch Normalization se observo una mejora progresiva del entrenamiento hasta aproximadamente 75\%--81\% de exactitud en entrenamiento, segun la corrida registrada, pero la exactitud de prueba oscilo y se mantuvo por debajo de 59\%. En LeNet-5 con Batch Normalization, la exactitud de entrenamiento subio hasta 96.69\%, mientras que la prueba se mantuvo baja y fluctuante. Esto evidencia sobreajuste y sugiere que Batch Normalization no fue suficiente para mejorar la generalizacion en una red tan estrecha con activaciones \texttt{Tanh}.
+En LeNet-5 sin Batch Normalization se observo una mejora progresiva del entrenamiento hasta 75.33\% de exactitud en entrenamiento, pero la exactitud de prueba oscilo y alcanzo su maximo en 58.22\%. En LeNet-5 con Batch Normalization, la exactitud de entrenamiento subio hasta 96.69\%, mientras que la prueba se mantuvo baja y fluctuante, con maximo de 43.83\%. Esto evidencia sobreajuste y sugiere que Batch Normalization no fue suficiente para mejorar la generalizacion en una red tan estrecha con activaciones \texttt{Tanh}.
 
 \begin{figure}[H]
 \centering
@@ -138,7 +138,7 @@ En LeNet-5 sin Batch Normalization se observo una mejora progresiva del entrenam
 
 \subsection{Efecto de Batch Normalization}
 
-Batch Normalization fue decisiva en el entrenamiento de VGG-11 reducido. La version sin normalizacion presento perdida cercana a 1.386 y exactitud alrededor de 25\%, lo cual corresponde aproximadamente al azar en una tarea de cuatro clases. La version con Batch Normalization, en cambio, llego a 79.01\% en la epoca 7.
+Batch Normalization fue decisiva en el entrenamiento de VGG-11 reducido. La version sin normalizacion presento perdida cercana a 1.386 y exactitud alrededor de 25\%, lo cual corresponde aproximadamente al azar en una tarea de cuatro clases. La version con Batch Normalization, en cambio, llego a 81.22\% en la epoca 7.
 
 Este resultado es consistente con la propuesta de Ioffe y Szegedy~\cite{ioffe2015batch}, quienes introdujeron Batch Normalization para reducir el desplazamiento interno de covariables y estabilizar la distribucion de activaciones. Sin embargo, los resultados de LeNet-5 muestran que el beneficio no es automatico: en modelos pequenos y estrechos, las estadisticas de batch pueden ser ruidosas y no necesariamente mejorar la generalizacion.
 
@@ -208,7 +208,7 @@ El bajo desempeno de feature extraction indica que entrenar solo la capa final n
 
 \subsection{Comparacion global}
 
-La comparacion final, presentada en la Tabla~\ref{tab:global}, muestra que la transferencia de aprendizaje fue la estrategia mas efectiva. ResNet18 con fine-tuning parcial supero al mejor modelo entrenado desde cero por aproximadamente 7.44 puntos porcentuales.
+La comparacion final, presentada en la Tabla~\ref{tab:global}, muestra que la transferencia de aprendizaje fue la estrategia mas efectiva. ResNet18 con fine-tuning parcial supero al mejor modelo entrenado desde cero por aproximadamente 5.23 puntos porcentuales.
 
 \begin{table}[H]
 \centering
@@ -220,10 +220,10 @@ Modelo & Fuente & Mejor exactitud TEST \\
 \midrule
 Fine-tuning parcial & ResNet18 ImageNet & 86.45\% \\
 Fine-tuning total & ResNet18 ImageNet & 86.09\% \\
-VGG-11 reducido + BN & Desde cero & 79.01\% \\
-LeNet-5 & Desde cero & 58.58\% \\
+VGG-11 reducido + BN & Desde cero & 81.22\% \\
+LeNet-5 & Desde cero & 58.22\% \\
 Feature extraction & ResNet18 ImageNet & 45.96\% \\
-LeNet-5 + BN & Desde cero & 45.56\% \\
+LeNet-5 + BN & Desde cero & 43.83\% \\
 VGG-11 reducido & Desde cero & 25.09\% \\
 \bottomrule
 \end{tabular}
@@ -246,7 +246,7 @@ Tambien se observa sobreajuste. LeNet-5 + BN alcanzo alta exactitud de entrenami
 
 \section{Conclusiones}
 
-El mejor modelo del proyecto fue ResNet18 con fine-tuning parcial, con 86.45\% de exactitud en TEST. Esta estrategia representa el mejor compromiso observado entre adaptacion al dominio, estabilidad y desempeno. Fine-tuning total obtuvo un resultado muy cercano, pero sin una mejora suficiente para justificar entrenar todos los parametros como primera opcion. El mejor modelo entrenado desde cero fue VGG-11 reducido con Batch Normalization, con 79.01\%, lo que confirma la importancia de la normalizacion en arquitecturas profundas.
+El mejor modelo del proyecto fue ResNet18 con fine-tuning parcial, con 86.45\% de exactitud en TEST. Esta estrategia representa el mejor compromiso observado entre adaptacion al dominio, estabilidad y desempeno. Fine-tuning total obtuvo un resultado muy cercano, pero sin una mejora suficiente para justificar entrenar todos los parametros como primera opcion. El mejor modelo entrenado desde cero fue VGG-11 reducido con Batch Normalization, con 81.22\%, lo que confirma la importancia de la normalizacion en arquitecturas profundas.
 
 Como trabajo futuro se recomienda reconstruir las particiones eliminando duplicados y agrupando por identificador fuente, introducir un conjunto de validacion independiente, repetir los entrenamientos con varias semillas, reportar precision, recall y F1-score por clase, y evaluar tecnicas de regularizacion como early stopping, aumentacion mas controlada y ajuste fino progresivo.
 
