@@ -183,15 +183,22 @@ with tab_perf:
     izq, der = st.columns([1, 1.2])
 
     with izq:
-        st.markdown("**Matriz de confusión** (umbral actual)")
-        z = [[m["tn"], m["fp"]], [m["fn"], m["tp"]]]
+        st.markdown("**Matriz de confusión** (% por clase real)")
+        cm = np.array([[m["tn"], m["fp"]], [m["fn"], m["tp"]]], dtype=float)
+        fila = cm.sum(axis=1, keepdims=True)
+        cm_pct = np.divide(cm, fila, out=np.zeros_like(cm), where=fila != 0) * 100
+        txt = [[f"{cm_pct[i, j]:.1f}%<br>({int(cm[i, j]):,})" for j in range(2)]
+               for i in range(2)]
         figcm = go.Figure(go.Heatmap(
-            z=z, x=["Pred. NORMAL", "Pred. ANOMALÍA"], y=["Real NORMAL", "Real ANOMALÍA"],
-            text=[[f"{v:,}" for v in row] for row in z], texttemplate="%{text}",
+            z=cm_pct, x=["Pred. NORMAL", "Pred. ANOMALÍA"],
+            y=["Real NORMAL", "Real ANOMALÍA"],
+            text=txt, texttemplate="%{text}", zmin=0, zmax=100,
             colorscale="Blues", showscale=False, hoverinfo="skip"))
         figcm.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10),
                             yaxis=dict(autorange="reversed"))
         st.plotly_chart(figcm, width="stretch")
+        st.caption("Cada fila suma 100% (porcentaje de cada clase real); entre paréntesis, "
+                   "el conteo. La celda inferior derecha es el recall.")
         st.metric("Accuracy global", f"{m['acc']:.2%}")
         st.metric("F1-score (anomalía)", f"{m['f1']:.3f}")
 
