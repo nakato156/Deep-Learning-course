@@ -2,11 +2,17 @@
 /models/
 /runs/
 
+# DL_TA4: dataset y virtualenv (resultados.pkl SI se versiona: lo usa el dashboard en Streamlit Cloud)
+/.venv/
+/sensor.csv
+
 __pycache__/
 *.pyc
+*.ipynb_checkpoints/
 
 # latex build files
 *.pdf
+!presentacion_bomba.pdf
 *.fls
 *.log
 *.aux
