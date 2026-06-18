@@ -2,10 +2,9 @@
 /models/
 /runs/
 
-# DL_TA4: dataset, virtualenv y artefactos generados
+# DL_TA4: dataset y virtualenv (resultados.pkl SI se versiona: lo usa el dashboard en Streamlit Cloud)
 /.venv/
 /sensor.csv
-/resultados.pkl
 
 __pycache__/
 *.pyc
@@ -13,6 +12,7 @@ __pycache__/
 
 # latex build files
 *.pdf
+!presentacion_bomba.pdf
 *.fls
 *.log
 *.aux
