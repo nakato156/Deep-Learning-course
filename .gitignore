@@ -2,8 +2,14 @@
 /models/
 /runs/
 
+# DL_TA4: dataset, virtualenv y artefactos generados
+/.venv/
+/sensor.csv
+/resultados.pkl
+
 __pycache__/
 *.pyc
+*.ipynb_checkpoints/
 
 # latex build files
 *.pdf
