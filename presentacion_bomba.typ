@@ -39,7 +39,8 @@
   ]
   #v(8pt)
   #text(size: 15pt, fill: rgb("#888"))[
-    Grupo: _(integrantes)_ · Sección: _( )_ · Fecha: _( )_
+    Grupo: Vilchez Rody · Velasquez Christian · Lazaro Luis \
+    Sección: 18522 · Fecha: 17/06/2026
   ]
 ]
 
